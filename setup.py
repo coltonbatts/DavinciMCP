@@ -38,7 +38,7 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "davincimcp=resolve_control:main",
+            "davincimcp=davincimcp.cli:main",
         ],
     },
 ) 

@@ -5,7 +5,17 @@ This package provides tools for programmatically controlling DaVinci Resolve,
 with integration for Google's Gemini AI for intelligent video editing assistance.
 """
 
-# Use string literals for __all__ to avoid circular imports
+# Version information
+__version__ = "0.1.0"
+
+# Import main components for easy access
+from davincimcp.core.resolve_controller import ResolveController
+from davincimcp.core.gemini_handler import GeminiAPIHandler
+from davincimcp.core.mcp_handler import MCPOperationsHandler
+from davincimcp.commands.command_registry import CommandRegistry, CommandExecutor, Command
+from davincimcp.media.analyzer import MediaAnalyzer, EditSuggestionEngine
+from davincimcp.utils.config import Config
+
 __all__ = [
     'ResolveController',
     'GeminiAPIHandler', 
@@ -17,11 +27,4 @@ __all__ = [
     'EditSuggestionEngine',
     'Config',
     '__version__'
-]
-
-# Version information
-__version__ = "0.1.0"
-
-# Use a function to get the version instead of importing directly
-def get_version():
-    return __version__ 
+] 

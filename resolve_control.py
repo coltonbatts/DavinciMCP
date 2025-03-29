@@ -14,7 +14,7 @@ Requirements:
     - Configuration in .env file (see .env.example)
 """
 
-__version__ = "0.1.0"
+# Version is defined in __init__.py
 
 import sys
 import os
