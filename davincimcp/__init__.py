@@ -11,7 +11,9 @@ __version__ = "0.1.0"
 # Import main components for easy access
 from davincimcp.core.resolve_controller import ResolveController
 from davincimcp.core.gemini_handler import GeminiAPIHandler
-from davincimcp.core.mcp_handler import MCPOperationsHandler
+from davincimcp.core.media.media_control_handler import MediaControlHandler
+from davincimcp.core.mcp.mcp_handler import MCPHandler
+from davincimcp.core.mcp.mcp_client import MCPClient
 from davincimcp.commands.command_registry import CommandRegistry, CommandExecutor, Command
 from davincimcp.media.analyzer import MediaAnalyzer, EditSuggestionEngine
 from davincimcp.utils.config import Config
@@ -26,7 +28,9 @@ except ImportError:
 __all__ = [
     'ResolveController',
     'GeminiAPIHandler', 
-    'MCPOperationsHandler',
+    'MediaControlHandler',
+    'MCPHandler',
+    'MCPClient',
     'CommandRegistry',
     'CommandExecutor',
     'Command',

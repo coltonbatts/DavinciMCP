@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-mcp_handler.py - Media Control Protocol (MCP) Operations Handler
+media_control_handler.py - Media Control Handler
 
-This module provides the MCPOperationsHandler class for handling specialized
-media control operations through the Media Control Protocol.
+This module provides the MediaControlHandler class for handling specialized
+media control operations for DaVinci Resolve.
 """
 
 import logging
@@ -12,21 +12,21 @@ from typing import Dict, Any, Union
 # Logger for this module
 logger = logging.getLogger(__name__)
 
-class MCPOperationsHandler:
+class MediaControlHandler:
     """
-    Handler for MCP (Media Control Protocol) operations
+    Handler for Media Control operations
     This will be implemented to handle specialized media control operations
     """
     
     def __init__(self, resolve_controller):
         """
-        Initialize the MCP Operations Handler
+        Initialize the Media Control Handler
         
         Args:
             resolve_controller: ResolveController instance for DaVinci Resolve access
         """
         self.resolve_controller = resolve_controller
-        logger.info("MCP Operations Handler initialized")
+        logger.info("Media Control Handler initialized")
         
         # Store supported commands
         self.supported_commands = {
@@ -40,7 +40,7 @@ class MCPOperationsHandler:
     
     def execute_command(self, command: str, params: Dict[str, Any] = None) -> Union[bool, Dict[str, Any]]:
         """
-        Execute an MCP command
+        Execute a Media Control command
         
         Args:
             command (str): The command to execute
@@ -54,7 +54,7 @@ class MCPOperationsHandler:
         
         # Check if command is supported
         if command not in self.supported_commands:
-            error_msg = f"Unsupported MCP command: {command}"
+            error_msg = f"Unsupported Media Control command: {command}"
             logger.error(error_msg)
             return {"status": "error", "message": error_msg}
             
@@ -63,7 +63,7 @@ class MCPOperationsHandler:
             result = self.supported_commands[command](params)
             
             # Log command execution
-            logger.info(f"MCP command executed: {command}")
+            logger.info(f"Media Control command executed: {command}")
             
             # Return result with success status if not already included
             if isinstance(result, dict) and "status" not in result:
@@ -71,7 +71,7 @@ class MCPOperationsHandler:
             return result
             
         except Exception as e:
-            error_msg = f"Error executing MCP command {command}: {str(e)}"
+            error_msg = f"Error executing Media Control command {command}: {str(e)}"
             logger.error(error_msg)
             return {"status": "error", "message": error_msg}
             

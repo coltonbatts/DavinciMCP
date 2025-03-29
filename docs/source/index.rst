@@ -9,7 +9,7 @@ Welcome to DavinciMCP's documentation!
    :target: https://www.python.org/downloads/
    :alt: Python: 3.8+
 
-DavinciMCP is a Python interface for controlling DaVinci Resolve with support for Media Control Protocol (MCP) and Gemini AI integration.
+DavinciMCP is a Python interface for controlling DaVinci Resolve with support for Model Context Protocol (MCP) and Gemini AI integration.
 
 Features
 --------

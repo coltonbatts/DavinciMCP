@@ -9,10 +9,13 @@ It parses command line arguments and dispatches to the appropriate handler.
 import sys
 import logging
 import argparse
+import asyncio
 from typing import Optional, List
 
 from davincimcp.core.resolve_controller import ResolveController
 from davincimcp.core.gemini_handler import GeminiAPIHandler
+from davincimcp.core.mcp.mcp_handler import MCPHandler
+from davincimcp.core.mcp.mcp_client import MCPClient
 from davincimcp.commands.command_registry import CommandRegistry, CommandExecutor
 from davincimcp.media.analyzer import MediaAnalyzer, EditSuggestionEngine
 from davincimcp.utils.config import Config
@@ -35,7 +38,7 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         argparse.Namespace: Parsed arguments
     """
     parser = argparse.ArgumentParser(
-        description="DavinciMCP - Python interface for controlling DaVinci Resolve with Gemini AI integration"
+        description="DavinciMCP - Python interface for controlling DaVinci Resolve with AI integration"
     )
     
     # Global options
@@ -58,6 +61,22 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="Disable operation feedback"
     )
+    interactive_parser.add_argument(
+        "--use-mcp",
+        action="store_true",
+        help="Use Model Context Protocol for AI interaction"
+    )
+    
+    # MCP mode
+    mcp_parser = subparsers.add_parser(
+        "mcp",
+        help="Start MCP interactive mode with Claude integration"
+    )
+    mcp_parser.add_argument(
+        "--server-script",
+        type=str,
+        help="Path to MCP server script"
+    )
     
     # GUI mode
     gui_parser = subparsers.add_parser(
@@ -71,8 +90,9 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         help="Execute a single command"
     )
     cmd_parser.add_argument(
-        "command_text", 
-        help="The command text to execute"
+        "text", 
+        type=str,
+        help="Command text to execute"
     )
     cmd_parser.add_argument(
         "--no-feedback", 
@@ -80,33 +100,158 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         help="Disable operation feedback"
     )
     
-    # Analysis mode
+    # Media analysis mode
     analyze_parser = subparsers.add_parser(
         "analyze", 
-        help="Analyze media"
-    )
-    analyze_parser.add_argument(
-        "--clip-index", 
-        type=int,
-        help="Index of the clip to analyze"
-    )
-    analyze_parser.add_argument(
-        "--timeline-item-index", 
-        type=int,
-        help="Index of the timeline item to analyze"
+        help="Analyze media and suggest edits"
     )
     analyze_parser.add_argument(
         "--target", 
         choices=["current", "selected", "all"],
         default="current",
-        help="Target for analysis"
+        help="Which media to analyze"
+    )
+    analyze_parser.add_argument(
+        "--output", 
+        choices=["console", "file"],
+        default="console",
+        help="Where to output results"
+    )
+    analyze_parser.add_argument(
+        "--output-file", 
+        type=str,
+        help="File to write results to (if output=file)"
+    )
+    
+    # Server mode
+    server_parser = subparsers.add_parser(
+        "server",
+        help="Start MCP server"
     )
     
     return parser.parse_args(args)
 
+async def run_mcp_mode(config: Config, server_script: Optional[str] = None) -> int:
+    """
+    Run the application in MCP mode
+    
+    Args:
+        config: Config instance
+        server_script: Optional path to MCP server script
+        
+    Returns:
+        int: Exit code (0 for success, non-zero for errors)
+    """
+    # Check for Anthropic API key
+    if not config.anthropic_api_key:
+        logger.error("Anthropic API key not found. Set ANTHROPIC_API_KEY in your .env file.")
+        return 1
+    
+    # Initialize Resolve controller
+    controller = ResolveController()
+    
+    # Try to connect to Resolve (optional for MCP mode)
+    resolve_connected = controller.connect()
+    if not resolve_connected:
+        logger.warning("Could not connect to DaVinci Resolve. Some features will be limited.")
+    
+    # Initialize MCP client
+    client = MCPClient(config, controller)
+    
+    # Get server script path
+    if not server_script:
+        server_script = config.get("mcp_server_script")
+    
+    if not server_script:
+        logger.error("No MCP server script specified. Set MCP_SERVER_SCRIPT in your .env file or use --server-script.")
+        return 1
+    
+    # Connect to MCP server
+    logger.info(f"Connecting to MCP server: {server_script}")
+    connected = await client.connect_to_server(server_script)
+    
+    if not connected:
+        logger.error("Failed to connect to MCP server. Exiting.")
+        return 1
+    
+    try:
+        # Run interactive session
+        print("\n===== DaVinci Resolve MCP Interactive Session =====")
+        print("Type 'exit' or 'quit' to end the session.")
+        print("Example commands:")
+        print("- Tell me about my current project")
+        print("- Cut the clip at the current position")
+        print("- Add a cross dissolve transition that's 1.5 seconds")
+        print("=====================================================\n")
+        
+        while True:
+            try:
+                # Get user input
+                user_input = input("\nEnter a command (or 'exit' to quit): ").strip()
+                
+                # Check for exit command
+                if user_input.lower() in ['exit', 'quit']:
+                    print("Exiting session...")
+                    break
+                    
+                # Process query with MCP
+                print("Processing...")
+                response = await client.process_query(user_input)
+                
+                # Display response
+                print("\nResponse:")
+                print(response)
+                
+            except KeyboardInterrupt:
+                print("\nSession interrupted. Exiting...")
+                break
+            except Exception as e:
+                logger.error(f"Error during interactive session: {str(e)}")
+                print(f"\nError: {str(e)}")
+                
+        return 0
+    finally:
+        # Disconnect from server
+        logger.info("Disconnecting from MCP server...")
+        await client.disconnect()
+
+async def run_server_mode(config: Config) -> int:
+    """
+    Run the application in server mode (starts an MCP server)
+    
+    Args:
+        config: Config instance
+        
+    Returns:
+        int: Exit code (0 for success, non-zero for errors)
+    """
+    # Initialize MCP handler
+    mcp_handler = MCPHandler(config)
+    
+    # Start server
+    logger.info("Starting MCP server...")
+    success = await mcp_handler.start_server()
+    
+    if not success:
+        logger.error("Failed to start MCP server.")
+        return 1
+    
+    try:
+        # Keep server running until interrupted
+        print("MCP server running. Press Ctrl+C to stop.")
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nServer interrupted. Shutting down...")
+    finally:
+        # Stop server
+        await mcp_handler.stop_server()
+    
+    return 0
+
 def run_gui_mode() -> int:
     """
-    Run the GUI mode
+    Run the application in GUI mode
     
     Returns:
         int: Exit code (0 for success, non-zero for errors)
@@ -115,149 +260,8 @@ def run_gui_mode() -> int:
         from davincimcp.ui.app import run_app
         return run_app()
     except ImportError as e:
-        logger.error(f"GUI dependencies not installed: {e}")
-        logger.error("Please install the required packages: pip install PySide6 Pillow")
-        return 1
-    except Exception as e:
-        logger.error(f"Error running GUI mode: {e}")
-        return 1
-
-def run_interactive_mode(
-    controller: ResolveController,
-    command_executor: CommandExecutor,
-    gemini_handler: GeminiAPIHandler,
-    media_analyzer: MediaAnalyzer,
-    edit_suggestion_engine: EditSuggestionEngine
-) -> int:
-    """
-    Run the interactive mode
-    
-    Args:
-        controller: Resolve controller
-        command_executor: Command executor
-        gemini_handler: Gemini API handler
-        media_analyzer: Media analyzer
-        edit_suggestion_engine: Edit suggestion engine
-        
-    Returns:
-        int: Exit code (0 for success, non-zero for errors)
-    """
-    # Show welcome message
-    print("\nDaVinci Resolve MCP Interactive Mode")
-    print("------------------------------------")
-    print("Type 'exit' or 'quit' to exit, 'help' for available commands.\n")
-    
-    # Check if connected to Resolve
-    project_info = controller.get_project_info()
-    if project_info:
-        print(f"Connected to project: {project_info.get('name', 'Unknown')}")
-    else:
-        print("Warning: Not connected to a DaVinci Resolve project.")
-    
-    # Main loop
-    while True:
-        # Get user input
-        try:
-            command_text = input("\nDavinciMCP> ").strip()
-        except KeyboardInterrupt:
-            print("\nExiting...")
-            return 0
-        except EOFError:
-            print("\nExiting...")
-            return 0
-        
-        # Check for exit command
-        if command_text.lower() in ["exit", "quit"]:
-            print("Exiting...")
-            return 0
-        
-        # Check for help command
-        if command_text.lower() == "help":
-            print("\nAvailable commands:")
-            print("  help - Show this help message")
-            print("  exit, quit - Exit the program")
-            print("  analyze - Analyze the current clip")
-            print("  <Any natural language command> - Execute command using Gemini AI")
-            continue
-        
-        # Check for analyze command
-        if command_text.lower() == "analyze":
-            print("\nAnalyzing current clip...")
-            try:
-                analysis = media_analyzer.analyze_current_clip()
-                if analysis:
-                    print("\nAnalysis results:")
-                    for key, value in analysis.items():
-                        print(f"  {key}: {value}")
-                    
-                    # Get edit suggestions
-                    suggestions = edit_suggestion_engine.get_suggestions_for_clip(analysis)
-                    if suggestions:
-                        print("\nEdit suggestions:")
-                        for i, suggestion in enumerate(suggestions, 1):
-                            print(f"  {i}. {suggestion}")
-                else:
-                    print("No analysis data available.")
-            except Exception as e:
-                print(f"Error analyzing clip: {e}")
-            continue
-        
-        # Execute command
-        try:
-            # This would use the real command pattern + AI in production
-            print(f"\nExecuting: {command_text}")
-            # In a real implementation, this would call command_executor.execute_command(command_text)
-            # with input from gemini_handler
-            print("Command executed.")
-        except Exception as e:
-            print(f"Error executing command: {e}")
-    
-    return 0
-
-def run_single_command(command_executor: CommandExecutor, command_text: str) -> int:
-    """
-    Run a single command
-    
-    Args:
-        command_executor: Command executor
-        command_text: Command text to execute
-        
-    Returns:
-        int: Exit code (0 for success, non-zero for errors)
-    """
-    try:
-        # This would use the real command pattern + AI in production
-        print(f"Executing: {command_text}")
-        # In a real implementation, this would call command_executor.execute_command(command_text)
-        print("Command executed.")
-        return 0
-    except Exception as e:
-        logger.error(f"Error executing command: {e}")
-        return 1
-
-def run_analysis(
-    media_analyzer: MediaAnalyzer,
-    edit_suggestion_engine: EditSuggestionEngine,
-    args: argparse.Namespace
-) -> int:
-    """
-    Run analysis mode
-    
-    Args:
-        media_analyzer: Media analyzer
-        edit_suggestion_engine: Edit suggestion engine
-        args: Command line arguments
-        
-    Returns:
-        int: Exit code (0 for success, non-zero for errors)
-    """
-    try:
-        print("Analyzing media...")
-        # In a real implementation, this would analyze media based on the provided arguments
-        print("Analysis complete.")
-        return 0
-    except Exception as e:
-        logger.error(f"Error during analysis: {e}")
+        logger.error(f"Failed to import GUI components: {str(e)}")
+        logger.error("Make sure PySide6 is installed: pip install PySide6")
         return 1
 
 def main(args: Optional[List[str]] = None) -> int:
@@ -278,6 +282,14 @@ def main(args: Optional[List[str]] = None) -> int:
     
     # Initialize configuration
     config = Config()
+    
+    # Check for MCP mode
+    if parsed_args.command == "mcp":
+        return asyncio.run(run_mcp_mode(config, parsed_args.server_script if hasattr(parsed_args, 'server_script') else None))
+    
+    # Check for server mode
+    if parsed_args.command == "server":
+        return asyncio.run(run_server_mode(config))
     
     # Check for GUI mode first
     if parsed_args.command == "gui":
@@ -314,13 +326,50 @@ def main(args: Optional[List[str]] = None) -> int:
     command = parsed_args.command or "interactive"
     
     if command == "interactive":
-        return run_interactive_mode(controller, command_executor, gemini_handler, media_analyzer, edit_suggestion_engine)
+        # Use MCP mode if specified
+        if getattr(parsed_args, 'use_mcp', False):
+            return asyncio.run(run_mcp_mode(config))
+            
+        # Run normal interactive mode
+        from davincimcp.interactive.prompt import run_interactive_session
+        return run_interactive_session(
+            command_executor, 
+            gemini_handler, 
+            controller, 
+            media_analyzer
+        )
     elif command == "cmd":
-        return run_single_command(command_executor, parsed_args.command_text)
+        result = command_executor.execute_from_text(parsed_args.text)
+        print(result.get('status', 'unknown'))
+        if result.get('feedback'):
+            print(result.get('feedback'))
+        return 0 if result.get('status') == 'success' else 1
     elif command == "analyze":
-        return run_analysis(media_analyzer, edit_suggestion_engine, parsed_args)
-    elif command == "gui":
-        return run_gui_mode()
+        target = parsed_args.target
+        if target == "current":
+            analysis = media_analyzer.analyze_current_clip()
+        elif target == "selected":
+            analysis = media_analyzer.analyze_selected_clips()
+        else:  # all
+            analysis = media_analyzer.analyze_all_media()
+            
+        suggestions = edit_suggestion_engine.generate_suggestions(analysis)
+        
+        if parsed_args.output == "console":
+            print(f"Analysis results for {target} media:")
+            print(analysis)
+            print("\nEdit suggestions:")
+            print(suggestions)
+        else:  # file
+            output_file = parsed_args.output_file or f"analysis_{target}.txt"
+            with open(output_file, 'w') as f:
+                f.write(f"Analysis results for {target} media:\n")
+                f.write(f"{analysis}\n\n")
+                f.write("Edit suggestions:\n")
+                f.write(f"{suggestions}\n")
+            print(f"Analysis written to {output_file}")
+        
+        return 0
     else:
         logger.error(f"Unknown command: {command}")
         return 1

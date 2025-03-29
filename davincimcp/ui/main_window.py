@@ -264,6 +264,6 @@ class MainWindow(QMainWindow):
             "About DavinciMCP",
             "DavinciMCP v0.1.0\n\n"
             "A Python interface for controlling DaVinci Resolve with\n"
-            "support for Media Control Protocol (MCP) and Gemini AI integration.\n\n"
+            "support for Model Context Protocol (MCP) and Gemini AI integration.\n\n"
             "© 2025 Colton Batts"
         ) 

@@ -11,7 +11,7 @@ import sys
 import platform
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 
 # Configure logging
@@ -32,6 +32,7 @@ class Config:
         self.platform = platform.system()
         self.resolve_modules_path = self._get_resolve_modules_path()
         self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.config_values = self._load_config()
         
     def _get_resolve_modules_path(self) -> str:
@@ -41,6 +42,11 @@ class Config:
         Returns:
             str: Path to the modules directory
         """
+        # Use environment variable path if set
+        env_path = os.getenv("RESOLVE_MODULES_PATH")
+        if env_path and os.path.exists(env_path):
+            return env_path
+            
         if self.platform == "Darwin":  # macOS
             return "/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting/Modules"
         elif self.platform == "Windows":
@@ -65,10 +71,31 @@ class Config:
             "gemini_temperature": float(os.getenv("GEMINI_TEMPERATURE", "0.7")),
             "gemini_max_tokens": int(os.getenv("GEMINI_MAX_TOKENS", "1024")),
             "feedback_enabled": os.getenv("FEEDBACK_ENABLED", "True").lower() in ("true", "1", "yes"),
+            
+            # MCP configuration
+            "mcp_enabled": os.getenv("MCP_ENABLED", "True").lower() in ("true", "1", "yes"),
+            "mcp_server_script": os.getenv("MCP_SERVER_SCRIPT", ""),
+            "mcp_server_capabilities": self._parse_capabilities(os.getenv("MCP_SERVER_CAPABILITIES", "resources,tools")),
         }
         
         logger.debug(f"Loaded configuration: {config}")
         return config
+    
+    def _parse_capabilities(self, capabilities_str: str) -> List[str]:
+        """
+        Parse comma-separated capabilities string into a list
+        
+        Args:
+            capabilities_str (str): Comma-separated list of capabilities
+            
+        Returns:
+            List[str]: List of capabilities
+        """
+        if not capabilities_str:
+            return []
+        
+        capabilities = [cap.strip() for cap in capabilities_str.split(",")]
+        return [cap for cap in capabilities if cap]  # Filter out empty strings
     
     def get(self, key: str, default: Any = None) -> Any:
         """
