@@ -17,12 +17,26 @@ A Python interface for controlling DaVinci Resolve with support for Media Contro
 
 ## Requirements
 - DaVinci Resolve installed with Developer/Scripting/Modules available
-- Python 3.x
+- Python 3.8+ 
 - Virtual environment (recommended)
 - Google Gemini API key (for AI features)
 - PySide6 and Pillow (for GUI features)
 
 ## Installation
+
+### From PyPI
+```bash
+# Create a virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Unix/macOS
+# or
+.venv\Scripts\activate  # On Windows
+
+# Install the package
+pip install DavinciMCP
+```
+
+### From Source
 1. Clone the repository:
    ```bash
    git clone https://github.com/coltonbatts/DavinciMCP.git
@@ -31,15 +45,15 @@ A Python interface for controlling DaVinci Resolve with support for Media Contro
 
 2. Create and activate virtual environment:
    ```bash
-   python -m venv resolve_env
-   source resolve_env/bin/activate  # On Unix/macOS
+   python -m venv .venv
+   source .venv/bin/activate  # On Unix/macOS
    # or
-   resolve_env\Scripts\activate  # On Windows
+   .venv\Scripts\activate  # On Windows
    ```
 
 3. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   pip install -e .
    ```
 
 4. Set up configuration:
@@ -50,10 +64,24 @@ A Python interface for controlling DaVinci Resolve with support for Media Contro
 
 ## Usage
 
+### Quick Start
+After installation, use the `davincimcp` command:
+
+```bash
+# Start GUI mode
+davincimcp gui
+
+# Start interactive CLI mode
+davincimcp interactive
+
+# Execute a command
+davincimcp cmd "Add a cross dissolve transition that's 1.5 seconds"
+```
+
 ### GUI Mode
 Run the application with the graphical user interface:
 ```bash
-python -m davincimcp.cli gui
+davincimcp gui
 ```
 
 The GUI provides:
@@ -64,9 +92,9 @@ The GUI provides:
 
 ### Command Line Mode
 1. Make sure DaVinci Resolve is running
-2. Run the control script in interactive mode:
+2. Run the interactive CLI:
    ```bash
-   python -m davincimcp.cli interactive
+   davincimcp interactive
    ```
 
 3. Example NLP commands:
@@ -79,13 +107,13 @@ The GUI provides:
 ### Single Command Mode
 Execute a single command:
 ```bash
-python -m davincimcp.cli cmd "Add a cross dissolve transition that's 1.5 seconds"
+davincimcp cmd "Add a cross dissolve transition that's 1.5 seconds"
 ```
 
 ### Analysis Mode
 Analyze media for editing suggestions:
 ```bash
-python -m davincimcp.cli analyze --target current
+davincimcp analyze --target current
 ```
 
 ## Configuration
@@ -96,13 +124,26 @@ The application uses environment variables for configuration:
 - `GEMINI_MAX_TOKENS`: Maximum length of AI responses
 - `FEEDBACK_ENABLED`: Enable/disable operation feedback
 
+See `.env.example` for all available configuration options.
+
 ## Project Structure
-- `davincimcp/core/`: Core functionality and Resolve connection
-- `davincimcp/commands/`: Implementation of command pattern for NLP control
-- `davincimcp/media/`: Media analysis tools for intelligent editing
-- `davincimcp/utils/`: Utility functions and configuration
-- `davincimcp/ui/`: GUI components and visualization
-- `tests/`: Test suite for key functionality
+```
+DavinciMCP/
+├── davincimcp/           # Main package
+│   ├── core/             # Core functionality and Resolve connection
+│   ├── commands/         # Command pattern implementation
+│   ├── media/            # Media analysis tools
+│   ├── utils/            # Utility functions and configuration
+│   ├── ui/               # GUI components and visualization
+│   └── cli.py            # Command-line interface
+├── tests/                # Test suite
+├── examples/             # Example scripts
+├── docs/                 # Documentation
+├── README.md
+├── requirements.txt
+├── setup.py
+└── CHANGELOG.md
+```
 
 ## Testing
 Run the test suite:
@@ -110,9 +151,30 @@ Run the test suite:
 pytest -v
 ```
 
+## Development
+
+### Setting up development environment
+```bash
+# Clone the repository
+git clone https://github.com/coltonbatts/DavinciMCP.git
+cd DavinciMCP
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Unix/macOS
+# or 
+.venv\Scripts\activate  # On Windows
+
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run pre-commit hooks
+pre-commit install
+```
+
 ## Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
