@@ -14,6 +14,8 @@ Requirements:
     - Configuration in .env file (see .env.example)
 """
 
+__version__ = "0.1.0"
+
 import sys
 import os
 import logging
