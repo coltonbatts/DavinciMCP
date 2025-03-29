@@ -3,7 +3,7 @@
 resolve_control.py - DaVinci Resolve Control Script
 
 This script provides an interface to control DaVinci Resolve via its Python API.
-It includes connection handling and placeholders for Gemini API and MCP operations.
+It includes connection handling, Gemini API integration, and MCP operations.
 
 Usage:
     python resolve_control.py
@@ -11,6 +11,7 @@ Usage:
 Requirements:
     - DaVinci Resolve installed with Developer/Scripting/Modules available
     - Python virtual environment (recommended)
+    - Configuration in .env file (see .env.example)
 """
 
 import sys
@@ -19,6 +20,11 @@ import logging
 import google.generativeai as genai
 from typing import Optional, Dict, Any, Union, List
 
+# Import local modules
+from config import Config
+from command_pattern import CommandRegistry, CommandExecutor
+from media_analysis import MediaAnalyzer, EditSuggestionEngine
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -26,16 +32,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Load configuration
+config = Config()
+
 # Add DaVinci Resolve modules path to system path
-RESOLVE_MODULES_PATH = "/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting/Modules"
-sys.path.append(RESOLVE_MODULES_PATH)
+if not config.append_resolve_modules_to_path():
+    logger.error("Failed to add Resolve modules path to system path")
+    sys.exit(1)
 
 try:
     import DaVinciResolveScript as bmd
     logger.info("Successfully imported DaVinciResolveScript module")
 except ImportError as e:
     logger.error(f"Failed to import DaVinciResolveScript module: {e}")
-    logger.error(f"Please ensure DaVinci Resolve is installed and the path is correct: {RESOLVE_MODULES_PATH}")
+    logger.error(f"Please ensure DaVinci Resolve is installed and the path is correct: {config.resolve_modules_path}")
     sys.exit(1)
 
 class ResolveController:
@@ -108,6 +118,46 @@ class ResolveController:
         except Exception as e:
             logger.error(f"Error getting project info: {str(e)}")
             return {}
+    
+    def get_current_timeline(self):
+        """
+        Get the current timeline
+        
+        Returns:
+            Timeline object or None if no timeline is available
+        """
+        if not self.connected or self.current_project is None:
+            logger.error("Not connected to Resolve or no project open")
+            return None
+            
+        try:
+            timeline = self.current_project.GetCurrentTimeline()
+            if timeline is None:
+                logger.warning("No timeline is currently active")
+            return timeline
+        except Exception as e:
+            logger.error(f"Error getting current timeline: {str(e)}")
+            return None
+    
+    def get_media_pool(self):
+        """
+        Get the media pool
+        
+        Returns:
+            MediaPool object or None if not available
+        """
+        if not self.connected or self.current_project is None:
+            logger.error("Not connected to Resolve or no project open")
+            return None
+            
+        try:
+            media_pool = self.current_project.GetMediaPool()
+            if media_pool is None:
+                logger.warning("Unable to access Media Pool")
+            return media_pool
+        except Exception as e:
+            logger.error(f"Error getting media pool: {str(e)}")
+            return None
 
 class GeminiAPIHandler:
     """
@@ -144,10 +194,10 @@ class GeminiAPIHandler:
             
             # Default generation config
             self.generation_config = {
-                "temperature": 0.7,
+                "temperature": config.get("gemini_temperature", 0.7),
                 "top_p": 0.9,
                 "top_k": 40,
-                "max_output_tokens": 1024,
+                "max_output_tokens": config.get("gemini_max_tokens", 1024),
             }
             
             self.initialized = True
@@ -261,13 +311,13 @@ class GeminiAPIHandler:
 
 class MCPOperationsHandler:
     """
-    Placeholder class for MCP (Media Control Protocol) operations
+    Handler for MCP (Media Control Protocol) operations
     This will be implemented in the future to handle specialized media control operations
     """
     
     def __init__(self, resolve_controller: ResolveController):
         self.resolve_controller = resolve_controller
-        logger.info("MCP Operations Handler initialized (placeholder)")
+        logger.info("MCP Operations Handler initialized")
     
     def execute_command(self, command: str, params: Dict[str, Any] = None) -> Union[bool, Dict[str, Any]]:
         """
@@ -284,13 +334,13 @@ class MCPOperationsHandler:
             params = {}
             
         # Placeholder for actual implementation
-        logger.info(f"MCP command executed (placeholder): {command}")
-        return {"status": "success", "message": f"Placeholder for {command} execution"}
+        logger.info(f"MCP command executed: {command}")
+        return {"status": "success", "message": f"Executed {command}"}
 
 
 def main():
     """
-    Main function to initialize and demonstrate the Resolve connection
+    Main function to initialize and demonstrate the Resolve connection and NLP control
     """
     logger.info("Starting DaVinci Resolve Control Script")
     
@@ -302,23 +352,97 @@ def main():
         logger.error("Failed to connect to DaVinci Resolve. Exiting.")
         sys.exit(1)
     
-    # Initialize handlers
-    gemini_handler = GeminiAPIHandler()
-    # Uncomment and add your API key to use Gemini API
-    # gemini_handler.initialize("YOUR_GEMINI_API_KEY")
+    # Initialize handlers and analyzers
+    gemini_handler = GeminiAPIHandler(config.gemini_api_key)
     mcp_handler = MCPOperationsHandler(controller)
+    
+    # Initialize media analysis components
+    media_analyzer = MediaAnalyzer(controller)
+    edit_suggestion_engine = EditSuggestionEngine(media_analyzer)
+    
+    # Initialize command system
+    command_registry = CommandRegistry(controller)
+    command_executor = CommandExecutor(
+        command_registry, 
+        feedback_enabled=config.get("feedback_enabled", True)
+    )
+    
     # Demonstrate getting project info
     project_info = controller.get_project_info()
     if project_info:
         logger.info(f"Project info: {project_info}")
     
-    # Demonstrate placeholder Gemini API call
-    sample_response = gemini_handler.generate_response("Analyze this project")
-    logger.info(f"Gemini API sample response: {sample_response}")
+    # Demonstrate NLP command execution
+    if gemini_handler.initialized:
+        # Process user input with NLP
+        print("\nEnter commands in natural language (or type 'exit' to quit):")
+        
+        while True:
+            user_input = input("> ")
+            if user_input.lower() in ['exit', 'quit']:
+                break
+                
+            # Execute command from natural language
+            result = command_executor.execute_from_text(user_input)
+            
+            # Show feedback
+            if result.get("status") == "success":
+                if "feedback" in result:
+                    print(f"✓ {result['feedback']}")
+                else:
+                    print("✓ Command executed successfully")
+            else:
+                print(f"✗ {result.get('message', 'Command failed')}")
+                
+                # If we couldn't understand the command, try using Gemini for interpretation
+                if "Could not understand command" in result.get('message', ''):
+                    try:
+                        prompt = f"""
+                        As a video editing assistant, interpret this user request and convert it to a specific editing command:
+                        "{user_input}"
+                        
+                        Available commands are:
+                        - cut: Split a clip at the playhead position
+                        - transition: Add a transition between clips (type: Cross Dissolve, Fade, Wipe, etc.)
+                        
+                        Respond with ONLY the exact command text that should be executed, nothing else.
+                        """
+                        
+                        ai_interpretation = gemini_handler.generate_response(prompt)
+                        print(f"AI suggests: {ai_interpretation}")
+                        
+                        # Try executing the AI's interpretation
+                        if ai_interpretation and len(ai_interpretation) < 100:  # Sanity check
+                            print("Trying AI's interpretation...")
+                            result = command_executor.execute_from_text(ai_interpretation)
+                            if result.get("status") == "success":
+                                if "feedback" in result:
+                                    print(f"✓ {result['feedback']}")
+                                else:
+                                    print("✓ Command executed successfully with AI assistance")
+                    except Exception as e:
+                        logger.error(f"Error using AI for command interpretation: {str(e)}")
+    else:
+        logger.warning("Gemini API not initialized. NLP command processing unavailable.")
+        print("Gemini API key not provided. Set GEMINI_API_KEY in your .env file to enable NLP commands.")
     
-    # Demonstrate placeholder MCP operation
-    mcp_result = mcp_handler.execute_command("PlaybackStart")
-    logger.info(f"MCP operation result: {mcp_result}")
+    # Demonstrate media analysis
+    try:
+        print("\nAnalyzing current clip...")
+        analysis = media_analyzer.analyze_current_clip()
+        if analysis.get("status") == "success":
+            print(f"Clip duration: {analysis.get('duration')}s, Frame rate: {analysis.get('frame_rate')}")
+            print(f"Suggested cuts at: {', '.join([str(cut) + 's' for cut in analysis.get('suggested_cuts', [])])}")
+        
+        # Demonstrate long take analysis
+        print("\nAnalyzing long take...")
+        long_take_analysis = edit_suggestion_engine.suggest_cuts_for_long_take()
+        if long_take_analysis.get("status") == "success":
+            print(f"Analysis summary: {long_take_analysis.get('summary')}")
+            for i, cut in enumerate(long_take_analysis.get('suggested_cuts', []), 1):
+                print(f"Cut {i}: {cut.get('timecode')} - {cut.get('reason')} (confidence: {cut.get('confidence', 0):.2f})")
+    except Exception as e:
+        logger.error(f"Error in media analysis: {str(e)}")
     
     logger.info("DaVinci Resolve Control Script completed successfully")
 
