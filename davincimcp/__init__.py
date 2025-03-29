@@ -16,6 +16,13 @@ from davincimcp.commands.command_registry import CommandRegistry, CommandExecuto
 from davincimcp.media.analyzer import MediaAnalyzer, EditSuggestionEngine
 from davincimcp.utils.config import Config
 
+# UI components
+try:
+    from davincimcp.ui import MainWindow, run_app
+    __has_ui__ = True
+except ImportError:
+    __has_ui__ = False
+
 __all__ = [
     'ResolveController',
     'GeminiAPIHandler', 
@@ -26,5 +33,10 @@ __all__ = [
     'MediaAnalyzer',
     'EditSuggestionEngine',
     'Config',
-    '__version__'
-] 
+    '__version__',
+    '__has_ui__'
+]
+
+# Add UI components to __all__ if available
+if __has_ui__:
+    __all__ += ['MainWindow', 'run_app'] 

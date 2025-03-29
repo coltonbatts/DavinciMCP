@@ -1,3 +1,38 @@
+Metadata-Version: 2.4
+Name: davincimcp
+Version: 0.1.0
+Summary: Python interface for controlling DaVinci Resolve with Gemini AI integration
+Home-page: https://github.com/coltonbatts/DavinciMCP
+Author: Colton Batts
+Author-email: coltonbatts@gmail.com
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: google-generativeai>=0.3.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: pytest>=7.0.0
+Requires-Dist: pytest-mock>=3.10.0
+Requires-Dist: PySide6>=6.5.0
+Requires-Dist: Pillow>=10.0.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
 # DavinciMCP
 
 A Python interface for controlling DaVinci Resolve with support for Media Control Protocol (MCP) and Gemini AI integration.
@@ -13,14 +48,12 @@ A Python interface for controlling DaVinci Resolve with support for Media Contro
 - Error handling and logging
 - Virtual environment support
 - Test framework with mocks for Resolve API
-- Modern GUI interface with timeline visualization
 
 ## Requirements
 - DaVinci Resolve installed with Developer/Scripting/Modules available
 - Python 3.x
 - Virtual environment (recommended)
 - Google Gemini API key (for AI features)
-- PySide6 and Pillow (for GUI features)
 
 ## Installation
 1. Clone the repository:
@@ -49,24 +82,10 @@ A Python interface for controlling DaVinci Resolve with support for Media Contro
    ```
 
 ## Usage
-
-### GUI Mode
-Run the application with the graphical user interface:
-```bash
-python -m davincimcp.cli gui
-```
-
-The GUI provides:
-- Timeline visualization with tracks and clips
-- Command panel for natural language input
-- Media browser for organizing assets
-- Visual feedback on AI operations
-
-### Command Line Mode
 1. Make sure DaVinci Resolve is running
-2. Run the control script in interactive mode:
+2. Run the control script:
    ```bash
-   python -m davincimcp.cli interactive
+   python resolve_control.py
    ```
 
 3. Example NLP commands:
@@ -75,18 +94,6 @@ The GUI provides:
    "Cut the clip at the current position"
    "Analyze this long take and suggest cuts"
    ```
-
-### Single Command Mode
-Execute a single command:
-```bash
-python -m davincimcp.cli cmd "Add a cross dissolve transition that's 1.5 seconds"
-```
-
-### Analysis Mode
-Analyze media for editing suggestions:
-```bash
-python -m davincimcp.cli analyze --target current
-```
 
 ## Configuration
 The application uses environment variables for configuration:
@@ -97,12 +104,11 @@ The application uses environment variables for configuration:
 - `FEEDBACK_ENABLED`: Enable/disable operation feedback
 
 ## Project Structure
-- `davincimcp/core/`: Core functionality and Resolve connection
-- `davincimcp/commands/`: Implementation of command pattern for NLP control
-- `davincimcp/media/`: Media analysis tools for intelligent editing
-- `davincimcp/utils/`: Utility functions and configuration
-- `davincimcp/ui/`: GUI components and visualization
-- `tests/`: Test suite for key functionality
+- `resolve_control.py`: Main control script and Resolve connection handler
+- `config.py`: Configuration management with platform detection
+- `command_pattern.py`: Implementation of command pattern for NLP control
+- `media_analysis.py`: Media analysis tools for intelligent editing
+- `test_resolve_control.py`: Test suite for key functionality
 
 ## Testing
 Run the test suite:
